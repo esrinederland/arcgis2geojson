@@ -182,7 +182,6 @@ def convertRingsToGeoJSON(rings):
             'coordinates': outerRings
         }
 
-
 def getId(attributes, idAttribute=None):
     keys = [idAttribute, 'OBJECTID', 'FID'] if idAttribute else ['OBJECTID', 'FID']
     for key in keys:
@@ -192,6 +191,38 @@ def getId(attributes, idAttribute=None):
             return attributes[key]
     raise KeyError('No valid id attribute found')
 
+# This function ensures that rings are oriented in the right directions
+# outer rings are clockwise, holes are counterclockwise
+# used for converting GeoJSON Polygons to ArcGIS Polygons
+def orientRings (poly):
+    output = []
+    polygon = poly.copy()
+    outerRing = closeRing(polygon.pop(0).copy())
+    if len(outerRing) >= 4:
+        if not ringIsClockwise(outerRing):
+            outerRing.reverse()
+    output.append(outerRing)
+
+    for polygon_item in polygon: 
+        hole = closeRing(polygon_item.copy())
+        if len(hole) >= 4:
+            if ringIsClockwise(hole):
+                hole.reverse()
+            output.append(hole)
+    return output
+
+# This function flattens holes in multipolygons to one array of polygons
+# used for converting GeoJSON Polygons to ArcGIS Polygons
+def flattenMultiPolygonRings (rings):
+    output = []
+    for ring_item in rings:
+        polygon = orientRings(ring_item)
+        x = len(polygon) - 1
+        while x >= 0:
+            ring = polygon[x].copy()
+            output.append(ring)
+            x = x - 1
+    return output
 
 def arcgis2geojson(arcgis, idAttribute=None):
     if isinstance(arcgis, str):
@@ -199,6 +230,54 @@ def arcgis2geojson(arcgis, idAttribute=None):
     else:
         return convert(arcgis, idAttribute)
 
+def geojson2ArcGIS (geojson, idAttribute=None):
+    if isinstance(geojson, str):
+        return convertback(json.loads(geojson), idAttribute)
+    else:
+        return convertback(geojson, idAttribute)
+
+# Convert an ArcGIS JSON object to a GeoJSON object
+def convertback (geojson, idAttribute=None):
+    if not idAttribute:
+        idAttribute = 'OBJECTID'
+    spatialReference = { 'wkid': 4326 }
+    result = {}
+
+    if geojson["type"] == 'Point':
+        result["x"] = geojson["coordinates"][0]
+        result["y"] = geojson["coordinates"][1]
+        result["spatialReference"] = spatialReference
+    elif geojson["type"] == 'MultiPoint':
+        result["points"] = geojson["coordinates"].copy()
+        result["spatialReference"] = spatialReference
+    elif geojson["type"] == 'LineString':
+        result["paths"] = [geojson["coordinates"].copy()]
+        result["spatialReference"] = spatialReference
+    elif geojson["type"] ==  'MultiLineString':
+        result["paths"] = geojson["coordinates"].copy()
+        result["spatialReference"] = spatialReference
+    elif geojson["type"] ==  'Polygon':
+        result["rings"] = orientRings(geojson["coordinates"].copy())
+        result["spatialReference"] = spatialReference
+    elif geojson["type"] ==  'MultiPolygon':
+        result["rings"] = flattenMultiPolygonRings(geojson["coordinates"])
+        result["spatialReference"] = spatialReference
+    elif geojson["type"] ==  'Feature':
+        if geojson["geometry"]: 
+            result["geometry"] = geojson2ArcGIS(geojson["geometry"], idAttribute)
+        result["attributes"] = geojson["properties"].copy()
+        if "id" in geojson:
+            result["attributes"][idAttribute] = geojson["id"]
+    elif geojson["type"] == 'FeatureCollection':
+        result = []
+        for feature in geojson["features"]:
+            result.append(geojson2ArcGIS(feature, idAttribute))
+    elif geojson["type"] == 'GeometryCollection':
+        result = []
+        for geometry in geojson["geometries"]:
+            result.append(geojson2ArcGIS(geometry, idAttribute))
+    
+    return result
 
 def convert(arcgis, idAttribute=None):
     """
@@ -278,7 +357,6 @@ def convert(arcgis, idAttribute=None):
 
     return geojson
 
-
 def main():
     parser = argparse.ArgumentParser(description='Convert ArcGIS JSON to GeoJSON')
     parser.add_argument(
@@ -299,7 +377,6 @@ def main():
 
     sys.stdout.write(arcgis2geojson(args.file.read(), idAttribute=args.id))
     return 0
-
 
 if __name__ == '__main__':
     sys.exit(main())
