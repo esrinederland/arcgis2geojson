@@ -7,8 +7,7 @@ import unittest
 from copy import deepcopy
 from unittest.mock import patch
 
-from arcgis2geojson import arcgis2geojson, main
-
+from arcgis2geojson import arcgis2geojson, geojson2ArcGIS, main
 
 """
 arcgis2geojson is a derivative work of ESRI's arcgis-to-geojson-utils:
@@ -23,6 +22,16 @@ arcgis2geojson is made available under the MIT License.
 
 class ArcGisToGeoJsonTests(unittest.TestCase):
 
+    def test_convert_geojson_point_to_arcgis_point(self):
+        input = {
+            'coordinates' : [-66.796875, 20.0390625],
+            'type' : 'Point'
+        }
+        output = geojson2ArcGIS(input)
+        self.assertEqual(output['x'], -66.796875)
+        self.assertEqual(output['y'], 20.0390625)
+        self.assertEqual(output['spatialReference']['wkid'], 4326)
+
     def test_convert_arcgis_point_to_geojson_point(self):
         input = {
             'x': -66.796875,
@@ -35,7 +44,19 @@ class ArcGisToGeoJsonTests(unittest.TestCase):
         self.assertEqual(output['coordinates'], [-66.796875, 20.0390625])
         self.assertEqual(output['type'], 'Point')
 
-    def test_convert_string_json_to_string_json(self):
+    def test_convert_string_geojson_to_arcgis_string_json(self):
+        input = json.dumps({
+            'coordinates' : [-66.796875, 20.0390625],
+            'type' : 'Point'
+        })
+        output = geojson2ArcGIS(input)
+        self.assertIsInstance(output, str)
+        output = json.loads(output)
+        self.assertEqual(output['x'], -66.796875)
+        self.assertEqual(output['y'], 20.0390625)
+        self.assertEqual(output['spatialReference']['wkid'], 4326)
+
+    def test_convert_arcgis_string_json_to_string_geojson(self):
         input = json.dumps({
             'x': -66.796875,
             'y': 20.0390625,
@@ -48,6 +69,17 @@ class ArcGisToGeoJsonTests(unittest.TestCase):
         output = json.loads(output)
         self.assertEqual(output['coordinates'], [-66.796875, 20.0390625])
         self.assertEqual(output['type'], 'Point')
+
+    def test_convert_geojson_point_with_z_value_to_arcgis_point(self):
+        input = {
+            'coordinates' : [-66.796875, 20.0390625, 1],
+            'type' : 'Point'
+        }
+        output = geojson2ArcGIS(input)
+        self.assertEqual(output['x'], -66.796875)
+        self.assertEqual(output['y'], 20.0390625)
+        self.assertEqual(output['z'], 1)
+        self.assertEqual(output['spatialReference']['wkid'], 4326)
 
     def test_convert_arcgis_point_with_z_value_to_geojson_point(self):
         input = {
@@ -62,6 +94,16 @@ class ArcGisToGeoJsonTests(unittest.TestCase):
         self.assertEqual(output['coordinates'], [-66.796875, 20.0390625, 1])
         self.assertEqual(output['type'], 'Point')
 
+    def test_convert_geojson_null_island_to_arcgis_point(self):
+        input = {
+            'coordinates' : [0, 0],
+            'type' : 'Point'
+        }
+        output = geojson2ArcGIS(input)
+        self.assertEqual(output['x'], 0)
+        self.assertEqual(output['y'], 0)
+        self.assertEqual(output['spatialReference']['wkid'], 4326)
+
     def test_convert_arcgis_null_island_to_geojson_point(self):
         input = {
             'x': 0,
@@ -74,7 +116,17 @@ class ArcGisToGeoJsonTests(unittest.TestCase):
         self.assertEqual(output['coordinates'], [0, 0])
         self.assertEqual(output['type'], 'Point')
 
-    def test_invalid_geometry(self):
+    def test_invalid_geojson_geometry(self):
+        input = {
+            'coordinates' : ['NaN', 'NaN'],
+            'type' : 'Point'
+        }
+        output = geojson2ArcGIS(input)
+        self.assertEqual(output['x'], 'NaN')
+        self.assertEqual(output['y'], 'NaN')
+        self.assertEqual(output['spatialReference']['wkid'], 4326)
+
+    def test_invalid_arcgis_geometry(self):
         input = {
             'geometry': {
                 'x': 'NaN',

@@ -232,7 +232,7 @@ def arcgis2geojson(arcgis, idAttribute=None):
 
 def geojson2ArcGIS (geojson, idAttribute=None):
     if isinstance(geojson, str):
-        return convertback(json.loads(geojson), idAttribute)
+        return json.dumps(convertback(json.loads(geojson), idAttribute))
     else:
         return convertback(geojson, idAttribute)
 
@@ -246,6 +246,8 @@ def convertback (geojson, idAttribute=None):
     if geojson["type"] == 'Point':
         result["x"] = geojson["coordinates"][0]
         result["y"] = geojson["coordinates"][1]
+        if len(geojson["coordinates"]) == 3:
+            result["z"] = geojson["coordinates"][2]
         result["spatialReference"] = spatialReference
     elif geojson["type"] == 'MultiPoint':
         result["points"] = geojson["coordinates"].copy()
